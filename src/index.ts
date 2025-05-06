@@ -30,7 +30,7 @@ app.get('/verify-month/:birth_month', (req: any, res: any) => {
 
   const { birth_month } = req.params;
 
-  console.log("Got a POST request...birth month provided is: ", birth_month )
+  console.log("Got a Birth Month Verification request...birth month provided is: ", birth_month )
 
   if (typeof birth_month !== 'string') {
     return res.status(400).json({ message: 'error', code: '000' });
