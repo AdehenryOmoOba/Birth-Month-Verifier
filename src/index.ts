@@ -17,9 +17,6 @@ const authorisedBirthMonths = [
 ];
 
 
-interface BirthMonthRequestBody {
-    birth_month: string;
-}
 
 // Home route
 app.get('/', (_req: Request, res: Response) => {
@@ -27,11 +24,13 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // POST route
-app.post('/verify-month', (req: Request<{}, {}, BirthMonthRequestBody>, res: any) => {
+app.get('/verify-month/:birth_month', (req: any, res: any) => {
 
-  console.log("Got a POST request...")
 
-  const { birth_month } = req.body;
+
+  const { birth_month } = req.params;
+
+  console.log("Got a POST request...birth month provided is: ", birth_month )
 
   if (typeof birth_month !== 'string') {
     return res.status(400).json({ message: 'error', code: '000' });
