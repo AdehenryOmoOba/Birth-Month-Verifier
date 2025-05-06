@@ -28,6 +28,9 @@ app.get('/', (_req: Request, res: Response) => {
 
 // POST route
 app.post('/verify-month', (req: Request<{}, {}, BirthMonthRequestBody>, res: any) => {
+
+  console.log("Got a POST request...")
+
   const { birth_month } = req.body;
 
   if (typeof birth_month !== 'string') {
