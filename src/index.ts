@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.NODE_ENV === 'production' ? process.env.PORT :  3000;
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -23,7 +23,7 @@ app.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'Success' });
 });
 
-// POST route
+// GET route
 app.get('/verify-month/:birth_month', (req: any, res: any) => {
 
 
