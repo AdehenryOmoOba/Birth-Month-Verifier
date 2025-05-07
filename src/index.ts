@@ -19,6 +19,8 @@ let cookie = "";
 const authenticateUser = (req: any, res: any, next: Function) => {
   // const token = req.cookies.jwt;
   const token = cookie;
+
+  console.log({token})
   
   if (!token || token !== 'mock-jwt-token') {
     return res.status(401).json({ message: 'unauthorised', code: '---' });
@@ -61,6 +63,8 @@ app.post('/login', (req, res) => {
 
     //save cookie in a variable
     cookie = req.cookies.jwt
+
+    console.log("req.cookies.jwt: ",req.cookies.jwt)
 
     res.status(200).json({ message: 'Login successful' });
   } else {
