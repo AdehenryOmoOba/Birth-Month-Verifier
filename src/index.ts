@@ -12,9 +12,13 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json());
 
+//Save response cookie
+let cookie = "";
+
 // Authentication middleware
 const authenticateUser = (req: any, res: any, next: Function) => {
-  const token = req.cookies.jwt;
+  // const token = req.cookies.jwt;
+  const token = cookie;
   
   if (!token || token !== 'mock-jwt-token') {
     return res.status(401).json({ message: 'unauthorised', code: '---' });
@@ -54,6 +58,10 @@ app.post('/login', (req, res) => {
       sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
+
+    //save cookie in a variable
+    cookie = req.cookies.jwt
+
     res.status(200).json({ message: 'Login successful' });
   } else {
     res.status(401).json({ message: 'Invalid credentials' });
