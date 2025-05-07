@@ -1,10 +1,27 @@
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
 import express, { Request, Response } from 'express';
 
 const app = express();
 const PORT = process.env.NODE_ENV === 'production' ? process.env.PORT :  3000;
 
-// Middleware to parse JSON
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(express.json());
+
+// Authentication middleware
+const authenticateUser = (req: any, res: any, next: Function) => {
+  const token = req.cookies.jwt;
+  
+  if (!token || token !== 'mock-jwt-token') {
+    return res.status(401).json({ message: 'unauthorised', code: '---' });
+  }
+  
+  next();
+};
 
 // Authorised birth months
 const authorisedBirthMonths = [
@@ -17,6 +34,28 @@ const authorisedBirthMonths = [
 ];
 
 
+// Mock user database
+const users = [
+  { username: 'admin', password: 'password' }
+];
+
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  const user = users.find(u => u.username === username && u.password === password);
+  
+  if (user) {
+    // Set HTTP-only cookie with JWT (mock)
+    res.cookie('jwt', 'mock-jwt-token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
+    });
+    res.status(200).json({ message: 'Login successful' });
+  } else {
+    res.status(401).json({ message: 'Invalid credentials' });
+  }
+});
 
 // Home route
 app.get('/', (_req: Request, res: Response) => {
@@ -24,9 +63,7 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // GET route
-app.get('/verify-month/:birth_month', (req: any, res: any) => {
-
-
+app.get('/verify-month/:birth_month', authenticateUser, (req: any, res: any) => {
 
   const { birth_month } = req.params;
 
@@ -48,7 +85,14 @@ app.get('/verify-month/:birth_month', (req: any, res: any) => {
   }
 });
 
+app.get('/logout', (_req, res) => {
+  res.clearCookie('jwt');
+  res.status(200).json({ message: 'Logout successful' });
+});
+
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
