@@ -40,8 +40,11 @@ const users = [
 ];
 
 app.post('/login', (req, res) => {
+
   const { username, password } = req.body;
   const user = users.find(u => u.username === username && u.password === password);
+
+  console.log("Requesting to login...", {username, password});
   
   if (user) {
     // Set HTTP-only cookie with JWT (mock)
