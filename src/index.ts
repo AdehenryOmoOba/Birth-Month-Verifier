@@ -85,6 +85,7 @@ app.get('/verify-month/:birth_month', authenticateUser, (req: any, res: any) => 
   }
 });
 
+//log out user
 app.get('/logout', (_req, res) => {
   res.clearCookie('jwt');
   res.status(200).json({ message: 'Logout successful' });
