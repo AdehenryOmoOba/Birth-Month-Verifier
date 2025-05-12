@@ -240,5 +240,5 @@ app.get("/info-request", async (req: any, res: any) => {
 
 
 app.listen(PORT, () => {
-  console.log(`Middleware server running on port ${PORT}`);
+  console.log(`Middleware server running on http://localhost:${PORT}`);
 });
