@@ -170,7 +170,7 @@ app.post("/login", async (req: any, res: any) => {
 }
 
   try {
-    // Simulated login to external API
+    // Simulated login to external API to obtain bearer token
     const loginResponse = await axios.post("https://nbsapi-dev.azurewebsites.net/Auth/login", agentLoginRequestBody);
 
     const token = loginResponse.data;
@@ -178,31 +178,15 @@ app.post("/login", async (req: any, res: any) => {
     console.log("Token returned from external API: ", token)
 
     agentTokens.set(agent_id, token);
+    
+    // Authenticate caller
+    const response = await axios.get(`https://nbsapi-dev.azurewebsites.net/Cobra/AuthenticateUser?employeeSsn=${ssn}&dateOfBirth=${dob}&zipCode=${zipcode}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-    // Verify user with GET request
-    // const authResponse = await axios.get("https://external-api.com/authenticate", {
-    //   headers: { Authorization: `Bearer ${token}` },
-    //   params: { employeeSsn: ssn, dateOfBirth: dob, zipCode: zipcode }
-    // });
+    if(response.data.success !== true) throw new Error(response.data.message);
 
-    // console.log("Incoming caller information: ", authResponse.data.dob, authResponse.data.zip);
-
-    // const isValid = authResponse.data.dob === dob && authResponse.data.zip === zipcode;
-
-    // if (!isValid) {
-    //   return res.status(401).json({ message: "Caller authentication failed." });
-    // }
-
-    // return res.status(200).json({ message: "success" });
-
-
-    // simulate external API returning Zip code and DOB of caller from databse matching on ssn
-    if (ssn === "000111111" && dob === "1970-01-01" && zipcode === "84111"){
-      return res.status(200).json({ message: "success" });
-    }else{
-      throw new Error("caller unathorize");
-    }
-
+    return res.status(200).json({ message: "success" });
 
   } catch (error: any) {
     console.error("Login error:", error.message);
@@ -213,24 +197,33 @@ app.post("/login", async (req: any, res: any) => {
 
 // Endpoint to handle data requests
 app.get("/info-request", async (req: any, res: any) => {
-  const { agentId, employeeSsn } = req.body;
+  const { employeeSsn, requestType } = req.query;
 
-  if (!agentId) {
-    return res.status(400).json({ message: "agent id error" });
-  }
-
-  const token = agentTokens.get(agentId);
+  const token = agentTokens.get("agent_id");
 
   if (!token) {
     return res.status(403).json({ message: "Agent not authenticated." });
   }
 
   try {
-    const response = await axios.get(`https://nbsapi-dev.azurewebsites.net/Cobra/GetCoverageBillingPeriodInformation?employeeSsn=${employeeSsn}`, {
+
+    let response = null;
+
+    if(requestType === "billingInfo") {
+      response = await axios.get(`https://nbsapi-dev.azurewebsites.net/Cobra/GetCoverageBillingPeriodInformation?employeeSsn=${employeeSsn}`, {
       headers: { Authorization: `Bearer ${token}` }
-    });
+      });
+    }
+
+    if(requestType === "testInfo") {
+      response = await axios.get(`https://nbsapi-dev.azurewebsites.net/Cobra/AnotherEndpointForTesting?inputParameter=Hello NBS Test API Endpoint`, {
+      headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+
 
     return res.status(200).json({ data: response.data });
+    
   } catch (error: any) {
     console.error("Request error:", error.message);
     return res.status(500).json({ message: `Failed to fetch data from external API. ${error.message}`});
