@@ -113,47 +113,48 @@ app.get("/info-request", async (req: any, res: any) => {
 });
 
 
-app.post('/webhook/elevenlabs', async (req, res) => {
-  // Get the webhook signature header
-  const reqHeader = req.headers['elevenlabs-signature'] as string
-  const headers =  reqHeader ? reqHeader.split(',') : [];
-  const tHeader = headers.find(e => e.startsWith('t='));
-  if (!tHeader) {
-    res.status(400).send('Missing timestamp');
-    return;
-  }
+app.post('/webhook/elevenlabs',  (req, res) => {
+  // // Get the webhook signature header
+  // const reqHeader = req.headers['elevenlabs-signature'] as string
+  // const headers =  reqHeader ? reqHeader.split(',') : [];
+  // const tHeader = headers.find(e => e.startsWith('t='));
+  // if (!tHeader) {
+  //   res.status(400).send('Missing timestamp');
+  //   return;
+  // }
 
-  const timestamp = tHeader.substring(2);
-  const signature = headers.find(e => e.startsWith('v0='));
+  // const timestamp = tHeader.substring(2);
+  // const signature = headers.find(e => e.startsWith('v0='));
  
-  // Verify timestamp (within 30 minutes)
-  const reqTimestamp = parseInt(timestamp) * 1000;
-  const tolerance = Date.now() - 30 * 60 * 1000;
-  if (reqTimestamp < tolerance) {
-    res.status(403).send('Request expired');
-    return;
-  }
+  // // Verify timestamp (within 30 minutes)
+  // const reqTimestamp = parseInt(timestamp) * 1000;
+  // const tolerance = Date.now() - 30 * 60 * 1000;
+  // if (reqTimestamp < tolerance) {
+  //   res.status(403).send('Request expired');
+  //   return;
+  // }
  
-  // Verify signature
-  const secret = process.env.WEBHOOK_SECRET; // Store this securely
-  const message = `${timestamp}.${req.body}`;
-  const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
-  if (signature !== digest) {
-    res.status(401).send('Invalid signature');
-    return;
-  }
+  // // Verify signature
+  // const secret = process.env.WEBHOOK_SECRET; // Store this securely
+  // const message = `${timestamp}.${req.body}`;
+  // const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
+  // if (signature !== digest) {
+  //   res.status(401).send('Invalid signature');
+  //   return;
+  // }
  
   // Process the webhook data
   const data = JSON.parse(req.body);
+  console.log("Received webhook data: ", data)
   // The webhook payload includes conversation data
-  const conversationId = data.data.conversation_id;
-  const transcript = data.data.transcript;
-  const analysis = data.data.analysis;
+  const conversationId = data.data?.conversation_id;
+  const transcript = data.data?.transcript;
+  const analysis = data.data?.analysis;
  
   // Do something with the data
-  console.log(`Received conversation ${conversationId}`);
+  console.log(`Received conversation ${conversationId}`, {transcript, analysis});
   // Must return 200 for successful webhook receipt
-  res.status(200).send('Webhook received');
+  res.status(200).json({message: 'Success'});
 });
 
 
