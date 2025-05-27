@@ -157,6 +157,15 @@ app.post('/webhook/elevenlabs',  (req, res) => {
   res.status(200).json({message: 'Success'});
 });
 
+//Create a post enddpoint "cobra-ai-agent-transcript"
+app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
+  
+  const { conversationId, transcript, analysis } = req.body;
+
+  console.log("Received cobra ai agent transcript: ", {conversationId, transcript, analysis})
+
+  return res.status(200).json({ message: "success" });
+});
 
 
 app.listen(PORT, () => {
