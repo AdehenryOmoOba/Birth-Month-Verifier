@@ -165,9 +165,14 @@ app.post('/webhook/elevenlabs',  (req, res) => {
 //Create a post enddpoint "cobra-ai-agent-transcript"
 app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
-  const { type, event_timestamp, data } = JSON.parse(req.body);
+  const {event_timestamp, data } = JSON.parse(req.body);
 
-  console.log("full data: ", { type, event_timestamp, data });
+  console.log("Call Info: ", { 
+    callTimestamp: event_timestamp, 
+    conversationId: data.conversation_id, 
+    transcript: data.transcript, 
+    callDuration: data.metadata.call_duration, 
+    summary: data.analysis.transcript_summary });
 
   return res.status(200).json({ message: "success" });
 });
