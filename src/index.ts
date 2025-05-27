@@ -187,12 +187,10 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
   console.log("Call Info: ", { 
     callTimestamp: event_timestamp, 
     conversationId: data.conversation_id, 
-    transcript: data.transcript, 
-    callDuration: data.metadata.call_duration_secs, 
+    callDurationInSeconds: data.metadata.call_duration_secs, 
     summary: data.analysis.transcript_summary,
-    unresolvedQueried: userQuestions
+    unresolvedQueries: userQuestions
   });
-
   
   return res.status(200).json({ message: "success" });
 });
