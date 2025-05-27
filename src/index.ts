@@ -214,7 +214,7 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
     const to = "Henry"; 
     const emailSubject = "COBRA AI Agent - Unresolved Queries"
     const emailResponse = await axios.post(
-      "https://adehenry.app.n8n.cloud/webhook-test/n8n-voice",
+      "https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice",
       {to, emailSubject, emailBody }
     );
     console.log("Email webhook response:", emailResponse.data);
