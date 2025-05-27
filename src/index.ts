@@ -165,14 +165,36 @@ app.post('/webhook/elevenlabs',  (req, res) => {
 //Create a post enddpoint "cobra-ai-agent-transcript"
 app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
+  const userQuestions: string[] = [];
+
   const {event_timestamp, data } = JSON.parse(req.body);
 
+ 
   console.log("Call Info: ", { 
     callTimestamp: event_timestamp, 
     conversationId: data.conversation_id, 
     transcript: data.transcript, 
-    callDuration: data.metadata.call_duration, 
-    summary: data.analysis.transcript_summary });
+    callDuration: data.metadata.call_duration_secs, 
+    summary: data.analysis.transcript_summary,
+    unresolvedQueried: userQuestions
+  });
+
+  
+
+for (let i = 1; i < data.transcript.length; i++) {
+  const current = data.transcript[i];
+  if (
+    current.role === "agent" &&
+    typeof current.message === "string" &&
+    current.message.startsWith("I'm sorry")
+  ) {
+    const previous = data.transcript[i - 1];
+    if (previous && previous.role === "user") {
+      userQuestions.push(previous.message);
+    }
+  }
+}
+
 
   return res.status(200).json({ message: "success" });
 });
