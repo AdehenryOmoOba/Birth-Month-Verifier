@@ -162,8 +162,6 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
   const { data } = req.body;
 
-  console.log("Received cobra ai agent transcript: ", {transcript: data.transcript })
-
   console.log("full data: ", {data: data })
 
   return res.status(200).json({ message: "success" });
