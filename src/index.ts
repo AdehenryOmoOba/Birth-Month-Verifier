@@ -169,6 +169,20 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
   const {event_timestamp, data } = JSON.parse(req.body);
 
+  for (let i = 1; i < data.transcript.length; i++) {
+    const current = data.transcript[i];
+    if (
+      current.role === "agent" &&
+      typeof current.message === "string" &&
+      current.message.startsWith("I'm sorry")
+    ) {
+      const previous = data.transcript[i - 1];
+      if (previous && previous.role === "user") {
+        userQuestions.push(previous.message);
+      }
+    }
+  }
+
  
   console.log("Call Info: ", { 
     callTimestamp: event_timestamp, 
@@ -180,22 +194,6 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
   });
 
   
-
-for (let i = 1; i < data.transcript.length; i++) {
-  const current = data.transcript[i];
-  if (
-    current.role === "agent" &&
-    typeof current.message === "string" &&
-    current.message.startsWith("I'm sorry")
-  ) {
-    const previous = data.transcript[i - 1];
-    if (previous && previous.role === "user") {
-      userQuestions.push(previous.message);
-    }
-  }
-}
-
-
   return res.status(200).json({ message: "success" });
 });
 
