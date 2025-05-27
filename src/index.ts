@@ -165,9 +165,13 @@ app.post('/webhook/elevenlabs',  (req, res) => {
 //Create a post enddpoint "cobra-ai-agent-transcript"
 app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
+  //TODO: implement authorisation headers verification for security.
+
   const userQuestions: string[] = [];
 
   const {event_timestamp, data } = JSON.parse(req.body);
+
+  let messageNumber = 0;
 
   for (let i = 1; i < data.transcript.length; i++) {
     const current = data.transcript[i];
@@ -178,12 +182,12 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
     ) {
       const previous = data.transcript[i - 1];
       if (previous && previous.role === "user") {
-        userQuestions.push(previous.message);
+        messageNumber++
+        userQuestions.push(`${messageNumber}) ${previous.message}`);
       }
     }
   }
 
- 
   console.log("Call Info: ", { 
     callTimestamp: event_timestamp, 
     conversationId: data.conversation_id, 
@@ -191,9 +195,36 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
     summary: data.analysis.transcript_summary,
     unresolvedQueries: userQuestions
   });
-  
+
+  const combinedQuestions = userQuestions.join('\n');
+  const transcriptUrl = `https://elevenlabs.io/app/conversational-ai/history/${data.conversation_id}`
+
+  const emailBody = `
+    Hello,<br><br>
+    Below are the questions COBRA AI agent was unable to answer from call <b>${data.conversation_id}</b>:<br>
+    <pre>${combinedQuestions}</pre>
+    <br>
+    <a href="${transcriptUrl}" style="display:inline-block;padding:10px 20px;background:#007bff;color:#fff;text-decoration:none;border-radius:5px;" target="_blank">
+      View Full Call Transcript
+    </a>
+  `;
+
+
+  try {
+    const to = "Henry"; 
+    const emailSubject = "COBRA AI Agent - Unresolved Queries"
+    const emailResponse = await axios.post(
+      "https://adehenry.app.n8n.cloud/webhook-test/n8n-voice",
+      {to, emailSubject, emailBody }
+    );
+    console.log("Email webhook response:", emailResponse.data);
+  } catch (error: any) {
+    console.error("Error sending email webhook:", error.message);
+  }
+
   return res.status(200).json({ message: "success" });
 });
+
 
 
 app.listen(PORT, () => {
