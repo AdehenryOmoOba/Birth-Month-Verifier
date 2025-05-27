@@ -1,10 +1,12 @@
 const cors = require('cors');
-const app = express();
 const cookieParser = require('cookie-parser');
 import express from 'express';
+const app = express();
 const axios = require("axios");
 const crypto = require('crypto');
 const bodyParser = require('body-parser');
+
+
  
 // Ensure express is parsing the raw body instead of applying its own encoding
 app.use(bodyParser.raw({ type: '*/*' }));
@@ -164,7 +166,7 @@ app.post('/webhook/elevenlabs',  (req, res) => {
 app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
   const { type, event_timestamp, data } = JSON.parse(req.body);
-  
+
   console.log("full data: ", { type, event_timestamp, data });
 
   return res.status(200).json({ message: "success" });
