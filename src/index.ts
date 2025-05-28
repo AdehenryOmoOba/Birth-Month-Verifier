@@ -163,65 +163,8 @@ app.post('/webhook/elevenlabs',  (req, res) => {
   res.status(200).json({message: 'Success'});
 });
 
-//Create a post enddpoint "cobra-ai-agent-transcript"
-app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
-
-  // Authorisation headers verification for security.
-  const secret = process.env.WEBHOOK_SECRET;
-  const headers = req.headers['ElevenLabs-Signature'].split(',');
-  const timestamp = headers.find((e: string) => e.startsWith('t=')).substring(2);
-  const signature = headers.find((e: string) => e.startsWith('v0='));
- 
-  // Validate timestamp
-  const reqTimestamp = timestamp * 1000;
-  const tolerance = Date.now() - 30 * 60 * 1000;
-  if (reqTimestamp < tolerance) {
-    res.status(403).send('Request expired');
-    return;
-  } else {
-    // Validate hash
-    const message = `${timestamp}.${req.body}`;
-    const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
-    if (signature !== digest) {
-      res.status(401).send('Request unauthorized');
-      return;
-    }
-  }
- 
-
-
-  const userQuestions: string[] = [];
-
-  const {event_timestamp, data } = JSON.parse(req.body);
-
-  let messageNumber = 0;
-
-  for (let i = 1; i < data.transcript.length; i++) {
-    const current = data.transcript[i];
-    if (
-      current.role === "agent" &&
-      typeof current.message === "string" &&
-      current.message.startsWith("I'm sorry")
-    ) {
-      const previous = data.transcript[i - 1];
-      if (previous && previous.role === "user") {
-        messageNumber++
-        userQuestions.push(`${messageNumber}) ${previous.message} <br>`);
-      }
-    }
-  }
-
-  console.log("Call Info: ", { 
-    callTimestamp: event_timestamp, 
-    conversationId: data.conversation_id, 
-    callDurationInSeconds: data.metadata.call_duration_secs, 
-    summary: data.analysis.transcript_summary,
-    unresolvedQueries: userQuestions
-  });
-
-  const combinedQuestions = userQuestions.join('\n');
-  const transcriptUrl = `https://elevenlabs.io/app/conversational-ai/history/${data.conversation_id}`
-
+function constructEmailBody(conversationId: string, combinedQuestions: string, transcriptUrl: string) {
+  
   const emailBody = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -438,7 +381,7 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
             
             <p class="intro-text">
                 We've identified some questions that COBRA AI agent couldn't fully address during this call: 
-                <span class="call-id">${data.conversation_id}</span>
+                <span class="call-id">${conversationId}</span>
             </p>
             
             <div class="questions-section">
@@ -462,22 +405,180 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
     </div>
 </body>
                       </html>`;
+  return emailBody;
+}
+
+//Create a post enddpoint "cobra-ai-agent-transcript"
+// app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
+
+//   // Authorisation headers verification for security.
+//   const secret = process.env.WEBHOOK_SECRET;
+//   const headers = req.headers['ElevenLabs-Signature'].split(',');
+//   const timestamp = headers.find((e: string) => e.startsWith('t=')).substring(2);
+//   const signature = headers.find((e: string) => e.startsWith('v0='));
+ 
+//   // Validate timestamp
+//   const reqTimestamp = timestamp * 1000;
+//   const tolerance = Date.now() - 30 * 60 * 1000;
+//   if (reqTimestamp < tolerance) {
+//     res.status(403).send('Request expired');
+//     return;
+//   } else {
+//     // Validate hash
+//     const message = `${timestamp}.${req.body}`;
+//     const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
+//     if (signature !== digest) {
+//       res.status(401).send('Request unauthorized');
+//       return;
+//     }
+//   }
+ 
 
 
-   if (userQuestions.length > 0) {
-    try {
-      const to = "Henry"; 
-      const emailSubject = "COBRA AI Agent - Unresolved Queries"
-      const emailResponse = await axios.post("https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", {to, emailSubject, emailBody });
-      console.log("Email webhook response:", emailResponse.data);
-    } catch (error: any) {
-      console.error("Error sending email webhook:", error.message);
+//   const userQuestions: string[] = [];
+
+//   const {event_timestamp, data } = JSON.parse(req.body);
+
+//   let messageNumber = 0;
+
+//   for (let i = 1; i < data.transcript.length; i++) {
+//     const current = data.transcript[i];
+//     if (
+//       current.role === "agent" &&
+//       typeof current.message === "string" &&
+//       current.message.startsWith("I'm sorry")
+//     ) {
+//       const previous = data.transcript[i - 1];
+//       if (previous && previous.role === "user") {
+//         messageNumber++
+//         userQuestions.push(`${messageNumber}) ${previous.message} <br>`);
+//       }
+//     }
+//   }
+
+//   console.log("Call Info: ", { 
+//     callTimestamp: event_timestamp, 
+//     conversationId: data.conversation_id, 
+//     callDurationInSeconds: data.metadata.call_duration_secs, 
+//     summary: data.analysis.transcript_summary,
+//     unresolvedQueries: userQuestions
+//   });
+
+//   const combinedQuestions = userQuestions.join('\n');
+//   const transcriptUrl = `https://elevenlabs.io/app/conversational-ai/history/${data.conversation_id}`
+   
+//   const emailBody = constructEmailBody(data.conversation_id, combinedQuestions, transcriptUrl);
+
+//    if (userQuestions.length > 0) {
+//     try {
+//       const to = "Henry"; 
+//       const emailSubject = "COBRA AI Agent - Unresolved Queries"
+//       const emailResponse = await axios.post("https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", {to, emailSubject, emailBody });
+//       console.log("Email webhook response:", emailResponse.data);
+//     } catch (error: any) {
+//       console.error("Error sending email webhook:", error.message);
+//     }
+//    }else {
+//     console.log("No unresolved queries found, skipping email notification.");            
+//    }
+
+//   return res.status(200).json({ message: "success" });
+// });
+
+app.post("/cobra-ai-agent-transcript", express.raw({type: 'application/json'}), async (req: any, res: any) => {
+  try {
+    // Authorization headers verification for security
+    const secret = process.env.WEBHOOK_SECRET;
+    
+    // Check if signature header exists (case-insensitive)
+    const signatureHeader = req.headers['elevenlabs-signature'] || req.headers['ElevenLabs-Signature'];
+    
+    if (!signatureHeader) {
+      return res.status(401).send('Missing signature header');
     }
-   }else {
-    console.log("No unresolved queries found, skipping email notification.");            
-   }
 
-  return res.status(200).json({ message: "success" });
+    const headers = signatureHeader.split(',');
+    const timestampHeader = headers.find((e: string) => e.startsWith('t='));
+    const signatureHashHeader = headers.find((e: string) => e.startsWith('v0='));
+    
+    if (!timestampHeader || !signatureHashHeader) {
+      return res.status(401).send('Invalid signature format');
+    }
+
+    const timestamp = timestampHeader.substring(2);
+    const signature = signatureHashHeader; // Keep the full "v0=..." format
+   
+    // Validate timestamp
+    const reqTimestamp = parseInt(timestamp) * 1000;
+    const tolerance = Date.now() - 30 * 60 * 1000;
+    if (reqTimestamp < tolerance) {
+      return res.status(403).send('Request expired');
+    }
+ 
+    // Validate hash - use raw body as string
+    const rawBody = req.body.toString('utf8');
+    const message = `${timestamp}.${rawBody}`;
+    const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message, 'utf8').digest('hex');
+    
+    if (signature !== digest) {
+      return res.status(401).send('Request unauthorized');
+    }
+
+    // Parse the body after validation
+    const parsedBody = JSON.parse(rawBody);
+    const { event_timestamp, data } = parsedBody;
+
+    // Rest of your code remains the same...
+    const userQuestions: string[] = [];
+    let messageNumber = 0;
+
+    for (let i = 1; i < data.transcript.length; i++) {
+      const current = data.transcript[i];
+      if (
+        current.role === "agent" &&
+        typeof current.message === "string" &&
+        current.message.startsWith("I'm sorry")
+      ) {
+        const previous = data.transcript[i - 1];
+        if (previous && previous.role === "user") {
+          messageNumber++
+          userQuestions.push(`${messageNumber}) ${previous.message} <br>`);
+        }
+      }
+    }
+
+    console.log("Call Info: ", { 
+      callTimestamp: event_timestamp, 
+      conversationId: data.conversation_id, 
+      callDurationInSeconds: data.metadata.call_duration_secs, 
+      summary: data.analysis.transcript_summary,
+      unresolvedQueries: userQuestions
+    });
+
+    const combinedQuestions = userQuestions.join('\n');
+    const transcriptUrl = `https://elevenlabs.io/app/conversational-ai/history/${data.conversation_id}`
+     
+    const emailBody = constructEmailBody(data.conversation_id, combinedQuestions, transcriptUrl);
+
+    if (userQuestions.length > 0) {
+      try {
+        const to = "Henry"; 
+        const emailSubject = "COBRA AI Agent - Unresolved Queries"
+        const emailResponse = await axios.post("https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", {to, emailSubject, emailBody });
+        console.log("Email webhook response:", emailResponse.data);
+      } catch (error: any) {
+        console.error("Error sending email webhook:", error.message);
+      }
+    } else {
+      console.log("No unresolved queries found, skipping email notification.");            
+    }
+
+    return res.status(200).json({ message: "success" });
+
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    return res.status(500).send('Internal server error');
+  }
 });
 
 
