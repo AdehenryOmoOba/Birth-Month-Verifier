@@ -224,7 +224,7 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
         .email-container {
             max-width: 600px;
             margin: 40px auto;
-            background: #ffffff;
+            background:rgb(248, 248, 248);
             border-radius: 16px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             overflow: hidden;
@@ -415,7 +415,7 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
             
             <p class="intro-text">
                 We've identified some questions that COBRA AI agent couldn't fully address during this call: 
-                <span class="call-id">${data.conversation_id}</span>. 
+                <span class="call-id">${data.conversation_id}</span>
             </p>
             
             <div class="questions-section">
@@ -438,7 +438,7 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
         </div>
     </div>
 </body>
-</html>`;
+                      </html>`;
 
 
   try {
