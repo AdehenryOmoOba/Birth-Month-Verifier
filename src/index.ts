@@ -1,3 +1,4 @@
+require('dotenv').config();
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 import express from 'express';
@@ -165,7 +166,29 @@ app.post('/webhook/elevenlabs',  (req, res) => {
 //Create a post enddpoint "cobra-ai-agent-transcript"
 app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
 
-  //TODO: implement authorisation headers verification for security.
+  // Authorisation headers verification for security.
+  const secret = process.env.WEBHOOK_SECRET;
+  const headers = req.headers['ElevenLabs-Signature'].split(',');
+  const timestamp = headers.find((e: string) => e.startsWith('t=')).substring(2);
+  const signature = headers.find((e: string) => e.startsWith('v0='));
+ 
+  // Validate timestamp
+  const reqTimestamp = timestamp * 1000;
+  const tolerance = Date.now() - 30 * 60 * 1000;
+  if (reqTimestamp < tolerance) {
+    res.status(403).send('Request expired');
+    return;
+  } else {
+    // Validate hash
+    const message = `${timestamp}.${req.body}`;
+    const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
+    if (signature !== digest) {
+      res.status(401).send('Request unauthorized');
+      return;
+    }
+  }
+ 
+
 
   const userQuestions: string[] = [];
 
