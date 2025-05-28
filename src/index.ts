@@ -441,17 +441,18 @@ app.post("/cobra-ai-agent-transcript", async (req: any, res: any) => {
                       </html>`;
 
 
-  try {
-    const to = "Henry"; 
-    const emailSubject = "COBRA AI Agent - Unresolved Queries"
-    const emailResponse = await axios.post(
-      "https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice",
-      {to, emailSubject, emailBody }
-    );
-    console.log("Email webhook response:", emailResponse.data);
-  } catch (error: any) {
-    console.error("Error sending email webhook:", error.message);
-  }
+   if (userQuestions.length > 0) {
+    try {
+      const to = "Henry"; 
+      const emailSubject = "COBRA AI Agent - Unresolved Queries"
+      const emailResponse = await axios.post("https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", {to, emailSubject, emailBody });
+      console.log("Email webhook response:", emailResponse.data);
+    } catch (error: any) {
+      console.error("Error sending email webhook:", error.message);
+    }
+   }else {
+    console.log("No unresolved queries found, skipping email notification.");            
+   }
 
   return res.status(200).json({ message: "success" });
 });
