@@ -1,0 +1,293 @@
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace YourApp.Controllers
+{
+    [ApiController]
+    [Route("api")]
+    public class WebhookController : ControllerBase
+    {
+        private readonly IConfiguration _configuration;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<WebhookController> _logger;
+
+        public WebhookController(
+            IConfiguration configuration, 
+            IHttpClientFactory httpClientFactory,
+            ILogger<WebhookController> logger)
+        {
+            _configuration = configuration;
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
+        }
+
+        [HttpPost("cobra-ai-agent-transcript")]
+        public async Task<IActionResult> CobraAiAgentTranscript()
+        {
+            try
+            {
+                // Read the raw request body
+                using var reader = new StreamReader(Request.Body);
+                var rawBody = await reader.ReadToEndAsync();
+
+                // Authorization headers verification for security
+                var secret = _configuration["WEBHOOK_SECRET"];
+                if (string.IsNullOrEmpty(secret))
+                {
+                    return StatusCode(500, "Webhook secret not configured");
+                }
+
+                // Check if signature header exists (case-insensitive)
+                if (!Request.Headers.TryGetValue("ElevenLabs-Signature", out var signatureHeader) &&
+                    !Request.Headers.TryGetValue("elevenlabs-signature", out signatureHeader))
+                {
+                    return Unauthorized("Missing signature header");
+                }
+
+                var headers = signatureHeader.ToString().Split(',');
+                var timestampHeader = headers.FirstOrDefault(e => e.StartsWith("t="));
+                var signatureHashHeader = headers.FirstOrDefault(e => e.StartsWith("v0="));
+
+                if (timestampHeader == null || signatureHashHeader == null)
+                {
+                    return Unauthorized("Invalid signature format");
+                }
+
+                var timestamp = timestampHeader.Substring(2);
+                var signature = signatureHashHeader;
+
+                // Validate timestamp
+                if (!long.TryParse(timestamp, out var timestampValue))
+                {
+                    return BadRequest("Invalid timestamp format");
+                }
+
+                var reqTimestamp = timestampValue * 1000; // Convert to milliseconds
+                var tolerance = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (30 * 60 * 1000); // 30 minutes
+                
+                if (reqTimestamp < tolerance)
+                {
+                    return StatusCode(403, "Request expired");
+                }
+
+                // Validate hash
+                var message = $"{timestamp}.{rawBody}";
+                var digest = "v0=" + ComputeHmacSha256(secret, message);
+
+                if (signature != digest)
+                {
+                    return Unauthorized("Request unauthorized");
+                }
+
+                // Parse the JSON after validation
+                var webhookData = JsonSerializer.Deserialize<WebhookPayload>(rawBody, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                });
+
+                if (webhookData?.Data?.Transcript == null)
+                {
+                    return BadRequest("Invalid webhook payload");
+                }
+
+                // Process the transcript
+                var userQuestions = new List<string>();
+                var messageNumber = 0;
+
+                for (int i = 1; i < webhookData.Data.Transcript.Length; i++)
+                {
+                    var current = webhookData.Data.Transcript[i];
+                    if (current.Role == "agent" && 
+                        !string.IsNullOrEmpty(current.Message) && 
+                        current.Message.StartsWith("I'm sorry"))
+                    {
+                        var previous = webhookData.Data.Transcript[i - 1];
+                        if (previous?.Role == "user")
+                        {
+                            messageNumber++;
+                            userQuestions.Add($"{messageNumber}) {previous.Message} <br>");
+                        }
+                    }
+                }
+
+                _logger.LogInformation("Call Info: {@CallInfo}", new
+                {
+                    CallTimestamp = webhookData.EventTimestamp,
+                    ConversationId = webhookData.Data.ConversationId,
+                    CallDurationInSeconds = webhookData.Data.Metadata?.CallDurationSecs,
+                    Summary = webhookData.Data.Analysis?.TranscriptSummary,
+                    UnresolvedQueries = userQuestions
+                });
+
+                // Send email notification if there are unresolved queries
+                if (userQuestions.Any())
+                {
+                    try
+                    {
+                        var combinedQuestions = string.Join("\n", userQuestions);
+                        var transcriptUrl = $"https://elevenlabs.io/app/conversational-ai/history/{webhookData.Data.ConversationId}";
+                        var emailBody = ConstructEmailBody(webhookData.Data.ConversationId, combinedQuestions, transcriptUrl);
+
+                        await SendEmailNotification("Henry", "COBRA AI Agent - Unresolved Queries", emailBody);
+                        _logger.LogInformation("Email notification sent successfully");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error sending email notification");
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("No unresolved queries found, skipping email notification");
+                }
+
+                return Ok(new { message = "success" });
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "JSON parsing error");
+                return BadRequest("Invalid JSON payload");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Webhook processing error");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        private static string ComputeHmacSha256(string secret, string message)
+        {
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(message));
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        private string ConstructEmailBody(string conversationId, string combinedQuestions, string transcriptUrl)
+        {
+            // Implement your email body construction logic here
+            return $@"
+                <h3>Unresolved Queries from COBRA AI Agent</h3>
+                <p><strong>Conversation ID:</strong> {conversationId}</p>
+                <p><strong>Unresolved Questions:</strong></p>
+                <div>{combinedQuestions}</div>
+                <p><a href='{transcriptUrl}'>View Full Transcript</a></p>
+            ";
+        }
+
+        private async Task SendEmailNotification(string to, string subject, string body)
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            
+            var emailPayload = new
+            {
+                to = to,
+                emailSubject = subject,
+                emailBody = body
+            };
+
+            var jsonContent = JsonSerializer.Serialize(emailPayload);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            var response = await httpClient.PostAsync(
+                "https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", 
+                content);
+
+            response.EnsureSuccessStatusCode();
+            
+            var responseContent = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation("Email webhook response: {Response}", responseContent);
+        }
+    }
+
+    // Data models for the webhook payload
+    public class WebhookPayload
+    {
+        [JsonPropertyName("event_timestamp")]
+        public long EventTimestamp { get; set; }
+
+        [JsonPropertyName("data")]
+        public WebhookData Data { get; set; }
+    }
+
+    public class WebhookData
+    {
+        [JsonPropertyName("conversation_id")]
+        public string ConversationId { get; set; }
+
+        [JsonPropertyName("transcript")]
+        public TranscriptItem[] Transcript { get; set; }
+
+        [JsonPropertyName("metadata")]
+        public CallMetadata Metadata { get; set; }
+
+        [JsonPropertyName("analysis")]
+        public CallAnalysis Analysis { get; set; }
+    }
+
+    public class TranscriptItem
+    {
+        [JsonPropertyName("role")]
+        public string Role { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; }
+    }
+
+    public class CallMetadata
+    {
+        [JsonPropertyName("call_duration_secs")]
+        public int CallDurationSecs { get; set; }
+    }
+
+    public class CallAnalysis
+    {
+        [JsonPropertyName("transcript_summary")]
+        public string TranscriptSummary { get; set; }
+    }
+}
+
+
+
+// Required configuration setup for your Program.cs or Startup.cs:
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container
+builder.Services.AddControllers();
+builder.Services.AddHttpClient();
+builder.Services.AddLogging();
+
+// Add configuration
+builder.Configuration.AddEnvironmentVariables();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+
+app.UseRouting();
+app.MapControllers();
+
+app.Run();
+
+
+// appsettings.json:
+{
+  "WEBHOOK_SECRET": "your-webhook-secret-here",
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
