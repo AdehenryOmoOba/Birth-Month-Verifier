@@ -122,34 +122,34 @@ app.get("/info-request", async (req: any, res: any) => {
 
 
 app.post('/webhook/elevenlabs',  (req, res) => {
-  // // Get the webhook signature header
-  // const reqHeader = req.headers['elevenlabs-signature'] as string
-  // const headers =  reqHeader ? reqHeader.split(',') : [];
-  // const tHeader = headers.find(e => e.startsWith('t='));
-  // if (!tHeader) {
-  //   res.status(400).send('Missing timestamp');
-  //   return;
-  // }
+  // Get the webhook signature header
+  const reqHeader = req.headers['elevenlabs-signature'] as string
+  const headers =  reqHeader ? reqHeader.split(',') : [];
+  const tHeader = headers.find(e => e.startsWith('t='));
+  if (!tHeader) {
+    res.status(400).send('Missing timestamp');
+    return;
+  }
 
-  // const timestamp = tHeader.substring(2);
-  // const signature = headers.find(e => e.startsWith('v0='));
+  const timestamp = tHeader.substring(2);
+  const signature = headers.find(e => e.startsWith('v0='));
  
-  // // Verify timestamp (within 30 minutes)
-  // const reqTimestamp = parseInt(timestamp) * 1000;
-  // const tolerance = Date.now() - 30 * 60 * 1000;
-  // if (reqTimestamp < tolerance) {
-  //   res.status(403).send('Request expired');
-  //   return;
-  // }
+  // Verify timestamp (within 30 minutes)
+  const reqTimestamp = parseInt(timestamp) * 1000;
+  const tolerance = Date.now() - 30 * 60 * 1000;
+  if (reqTimestamp < tolerance) {
+    res.status(403).send('Request expired');
+    return;
+  }
  
-  // // Verify signature
-  // const secret = process.env.WEBHOOK_SECRET; // Store this securely
-  // const message = `${timestamp}.${req.body}`;
-  // const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
-  // if (signature !== digest) {
-  //   res.status(401).send('Invalid signature');
-  //   return;
-  // }
+  // Verify signature
+  const secret = process.env.WEBHOOK_SECRET; // Store this securely
+  const message = `${timestamp}.${req.body}`;
+  const digest = 'v0=' + crypto.createHmac('sha256', secret).update(message).digest('hex');
+  if (signature !== digest) {
+    res.status(401).send('Invalid signature');
+    return;
+  }
  
   // Process the webhook data
   const data = JSON.parse(req.body);
@@ -412,22 +412,6 @@ function constructEmailBody(conversationId: string, combinedQuestions: string, t
 
 app.post("/cobra-ai-agent-transcript", express.raw({type: 'application/json'}), async (req: any, res: any) => {
 
-  console.log(req.body);
-  
-  // Define the file path
-  const filePath = path.join(__dirname, 'agent-request-body-logs.txt');
-
-  // Append data to file
-  fs.appendFile(filePath, req.body, (err: any) => {
-    if (err) {
-            console.error('Failed to write to file:', err);
-            return res.status(500).send('Failed to write data');
-    }else{
-      console.log('Data written to file');
-    }
-  });
-
-
   try {
     // Authorization headers verification for security
     const secret = process.env.WEBHOOK_SECRET;
@@ -470,47 +454,98 @@ app.post("/cobra-ai-agent-transcript", express.raw({type: 'application/json'}), 
     const parsedBody = JSON.parse(rawBody);
     const { event_timestamp, data } = parsedBody;
 
-    // Rest of your code remains the same...
-    const userQuestions: string[] = [];
-    let messageNumber = 0;
-
-    for (let i = 1; i < data.transcript.length; i++) {
-      const current = data.transcript[i];
-      if (
-        current.role === "agent" &&
-        typeof current.message === "string" &&
-        current.message.startsWith("I'm sorry")
-      ) {
-        const previous = data.transcript[i - 1];
-        if (previous && previous.role === "user") {
-          messageNumber++
-          userQuestions.push(`${messageNumber}) ${previous.message} <br>`);
-        }
-      }
+    // Loop throught the data.transcript property which is an arrya of objects, and extract the "role" and "message" properties from each object
+    interface TranscriptItem {
+      role: string;
+      message: string;
     }
+
+    const transcriptData = data.transcript.map((item: TranscriptItem) => ({
+      role: item.role,
+      message: item.message
+    }));
 
     console.log("Call Info: ", { 
       callTimestamp: event_timestamp, 
       conversationId: data.conversation_id, 
       callDurationInSeconds: data.metadata.call_duration_secs, 
       summary: data.analysis.transcript_summary,
-      unresolvedQueries: userQuestions
+      trimmedTranscript: transcriptData
     });
 
-    const combinedQuestions = userQuestions.join('\n');
-    const transcriptUrl = `https://elevenlabs.io/app/conversational-ai/history/${data.conversation_id}`
+    // const combinedQuestions = userQuestions.join('\n');
+    // const emailBody = constructEmailBody(data.conversation_id, combinedQuestions, transcriptUrl);
+    // const transcriptUrl = `https://elevenlabs.io/app/conversational-ai/history/${data.conversation_id}`
      
-    const emailBody = constructEmailBody(data.conversation_id, combinedQuestions, transcriptUrl);
 
-    if (userQuestions.length > 0) {
-      try {
-        const to = "Henry"; 
-        const emailSubject = "COBRA AI Agent - Unresolved Queries"
-        const emailResponse = await axios.post("https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", {to, emailSubject, emailBody });
-        console.log("Email webhook response:", emailResponse.data);
-      } catch (error: any) {
-        console.error("Error sending email webhook:", error.message);
-      }
+    if (transcriptData.length > 0) {
+       // Programatically prompt elevenlabs agent to identify unaswerd user's questions from the transcript and reply with an object with property "unanswered" whose value is an array of unanswered questions 
+       try {
+        //  const elevenLabsResponse = await axios.post(
+        //    "https://api.elevenlabs.io/v1/chat/completions",
+        //    {
+        //      model: "gpt-4",
+        //      messages: [
+        //        {
+        //          role: "system",
+        //          content: `You are an AI assistant that analyzes conversation transcripts. Your task is to identify unanswered user questions and call back information. Return a JSON object with the following properties:
+        //          - "unanswered": an array of unanswered questions
+        //          - "call_me_back": boolean, set to "true" if user indicated they want a call back, "false" otherwise
+        //          - "user_email": string, set to the user's email if provided and they want a call back, "false" otherwise
+        //          - "user_phone": string, set to the user's phone in format "(001) 123-4567" if provided and they want a call back, "false" otherwise
+        //          - "user_ssn": string, set to the user's SSN in format "123-45-6789" if provided and they want a call back, "false" otherwise
+                 
+        //          Only include questions that were not properly addressed by the agent. For contact information, only include if the user explicitly requested a call back.`
+        //        },
+        //        {
+        //          role: "user",
+        //          content: `Analyze this conversation transcript, identify unanswered questions and call back information provided by the user: ${JSON.stringify(transcriptData)}`
+        //        }
+        //      ],
+        //      temperature: 0.7
+        //    },
+        //    {
+        //      headers: {
+        //        "Content-Type": "application/json",
+        //        "xi-api-key": process.env.ELEVENLABS_API_KEY // TODO: Add to deployment environment variables
+        //      }
+        //    }
+        //  );
+
+        //  const data = elevenLabsResponse.data.choices[0].message.content;
+        //  const processedData = JSON.parse(data);
+
+        const res = await fetch('https://api.elevenlabs.io/v1/agents/chat', {
+          method: 'POST',
+          headers: new Headers({
+            'xi-api-key': process.env.ELEVENLABS_API_KEY ?? '',
+            'Content-Type': 'application/json',
+          }),
+          body: JSON.stringify({
+            agent_id: process.env.TRANSCRIPT_ANALYZER_AGENT_ID,
+            text: `Analyze this conversation transcript, identify unanswered questions and call back information provided by the user: ${JSON.stringify(transcriptData)}`,
+          }),
+        });
+      
+        if (!res.ok) {
+          throw new Error(`API Error: ${res.statusText}`);
+        }
+      
+        const data = await res.json();
+        console.log('Agent reply:', data.reply);
+
+        //  console.log(processedData)
+
+        //  const combinedQuestions = processedData.unanswered.join('\n');
+        //  const emailBody = constructEmailBody(data.conversation_id, combinedQuestions, transcriptUrl);
+
+        //  const to = "Henry"; 
+        //  const emailSubject = "COBRA AI Agent - Unresolved Queries"
+        //  const emailResponse = await axios.post("https://adehenry1679.app.n8n.cloud/webhook-test/n8n-voice", {to, emailSubject, emailBody });
+        //  console.log("Email webhook response:", emailResponse.data);
+       } catch (error: any) {
+         console.error("Error sending email webhook:", error.message);
+       }
     } else {
       console.log("No unresolved queries found, skipping email notification.");            
     }
